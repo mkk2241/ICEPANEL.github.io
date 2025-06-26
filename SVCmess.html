@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Szyfrowany Komunikator</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e2f;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #chat {
+      height: 300px;
+      overflow-y: auto;
+      background: #2c2c3c;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    textarea, input {
+      width: 100%;
+      padding: 10px;
+      background: #2c2c3c;
+      color: white;
+      border: 1px solid #444;
+      border-radius: 6px;
+      resize: vertical;
+    }
+    button {
+      padding: 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .section {
+      background: #26263a;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loginSection" class="section">
+      <h2>🔐 Stwórz konto tymczasowe</h2>
+      <input type="text" id="username" placeholder="Nazwa użytkownika">
+      <button onclick="createTemporaryAccount()">Stwórz konto</button>
+    </div>
+
+    <div id="messengerSection" class="hidden">
+      <h2>💬 Komunikator - <span id="userLabel"></span></h2>
+      <div id="chat" class="section"></div>
+
+      <div class="section">
+        <textarea id="message" placeholder="Wpisz wiadomość..."></textarea>
+        <button onclick="sendMessage()">Wyślij wiadomość</button>
+      </div>
+
+      <div class="section">
+        <h3>📥 Odszyfruj wiadomość:</h3>
+        <textarea id="encryptedInput" rows="4" placeholder="Wklej zaszyfrowaną wiadomość..."></textarea>
+        <button onclick="decryptInput()">Odszyfruj wiadomość</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as openpgp from 'https://cdn.skypack.dev/openpgp';
+
+    let myKeyPair;
+    let username;
+
+    window.createTemporaryAccount = async function () {
+      username = document.getElementById("username").value.trim();
+      if (!username) {
+        alert("Podaj nazwę użytkownika.");
+        return;
+      }
+
+      try {
+        const keyOptions = {
+          type: "rsa",
+          rsaBits: 2048,
+          userIDs: [{ name: username }],
+          passphrase: "", // brak hasła
+        };
+
+        myKeyPair = await openpgp.generateKey(keyOptions);
+
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("messengerSection").classList.remove("hidden");
+        document.getElementById("userLabel").textContent = username;
+
+        document.getElementById("chat").innerHTML += `
+          <div style='color:lime'><b>Konto tymczasowe utworzone.</b><br>
+          <i>Twój klucz publiczny:</i><br>
+          <textarea rows='4' style='width:100%'>${myKeyPair.publicKey}</textarea></div>
+        `;
+      } catch (err) {
+        alert("Błąd przy generowaniu klucza: " + err.message);
+        console.error(err);
+      }
+    };
+
+    window.sendMessage = async function () {
+      const msg = document.getElementById("message").value.trim();
+      const pubkey = prompt("Wklej klucz publiczny odbiorcy:");
+      if (!msg || !pubkey) return;
+
+      const encrypted = await openpgp.encrypt({
+        message: await openpgp.createMessage({ text: msg }),
+        encryptionKeys: await openpgp.readKey({ armoredKey: pubkey }),
+      });
+
+      document.getElementById("chat").innerHTML += `
+        <div style='color:yellow'><b>Wiadomość zaszyfrowana:</b><br>
+        <textarea rows='4' style='width:100%'>${encrypted}</textarea></div>
+      `;
+      document.getElementById("message").value = "";
+    };
+
+    window.decryptInput = async function () {
+      const encryptedText = document.getElementById("encryptedInput").value.trim();
+      if (!encryptedText || !myKeyPair) return;
+
+      const privateKey = await openpgp.readPrivateKey({ armoredKey: myKeyPair.privateKey });
+      const message = await openpgp.readMessage({ armoredMessage: encryptedText });
+
+      const { data: decrypted } = await openpgp.decrypt({
+        message,
+        decryptionKeys: privateKey,
+      });
+
+      document.getElementById("chat").innerHTML += `
+        <div style='color:lightgreen'><b>Odszyfrowano:</b><br>${decrypted}</div>
+      `;
+      document.getElementById("encryptedInput").value = "";
+    };
+  </script>
+</body>
+</html>
